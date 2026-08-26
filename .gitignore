@@ -1,0 +1,46 @@
+## Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.log
+
+## Visual Studio & IDEs
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.sln.docstates
+*.dtbcache.v2
+.history/
+
+## Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.local.json
+appsettings.*.json
+!appsettings.json
+!appsettings.Example.json
+!appsettings.example.json
+
+## Certificates & Private Keys
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+rsa_private_key.pem
+secrets.json
+
+## Test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+## OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
