@@ -23,6 +23,16 @@ public class SwaggerAggregatorController : ControllerBase
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
 
+    private static readonly string[] DefaultProbePaths =
+    {
+        "/swagger/v1/swagger.json",
+        "/swagger/index.html",
+        "/.well-known/jwks.json",
+        "/health",
+        "/swagger.json",
+        "/"
+    };
+
     public SwaggerAggregatorController(IConfiguration config, IHttpClientFactory httpClientFactory)
     {
         _config = config;
@@ -37,7 +47,7 @@ public class SwaggerAggregatorController : ControllerBase
     {
         var servicesSection = _config.GetSection("DownstreamServices");
         var client = _httpClientFactory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(3);
+        client.Timeout = TimeSpan.FromSeconds(2.5);
 
         var items = new List<SwaggerDocServiceItem>
         {
@@ -62,29 +72,11 @@ public class SwaggerAggregatorController : ControllerBase
             var baseUrl = (child["BaseUrl"] ?? string.Empty).TrimEnd('/');
             var desc = child["Description"] ?? string.Empty;
             var icon = child["Icon"] ?? "api";
-            var healthPath = child["HealthEndpoint"] ?? "/swagger/v1/swagger.json";
+            var configuredHealthPath = child["HealthEndpoint"];
 
             if (string.IsNullOrWhiteSpace(baseUrl)) return null;
 
-            var status = "UNHEALTHY";
-            double latency = 0;
-
-            try
-            {
-                var healthUrl = healthPath.StartsWith("http") ? healthPath : $"{baseUrl}{healthPath}";
-                var sw = Stopwatch.StartNew();
-                var res = await client.GetAsync(healthUrl);
-                sw.Stop();
-                latency = Math.Round(sw.Elapsed.TotalMilliseconds, 1);
-                if (res.IsSuccessStatusCode)
-                {
-                    status = "HEALTHY";
-                }
-            }
-            catch
-            {
-                status = "UNHEALTHY";
-            }
+            var (status, latency) = await CheckServiceHealthAsync(client, baseUrl, configuredHealthPath);
 
             return new SwaggerDocServiceItem
             {
@@ -109,6 +101,55 @@ public class SwaggerAggregatorController : ControllerBase
         return Ok(items);
     }
 
+    private static async Task<(string Status, double LatencyMs)> CheckServiceHealthAsync(
+        HttpClient client,
+        string baseUrl,
+        string? configuredHealthPath)
+    {
+        var candidatePaths = new List<string>();
+        if (!string.IsNullOrWhiteSpace(configuredHealthPath))
+        {
+            candidatePaths.Add(configuredHealthPath);
+        }
+        foreach (var p in DefaultProbePaths)
+        {
+            if (!candidatePaths.Contains(p))
+            {
+                candidatePaths.Add(p);
+            }
+        }
+
+        foreach (var path in candidatePaths)
+        {
+            try
+            {
+                var targetUrl = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? path
+                    : $"{baseUrl}{path}";
+
+                var sw = Stopwatch.StartNew();
+                using var res = await client.GetAsync(targetUrl, HttpCompletionOption.ResponseHeadersRead);
+                sw.Stop();
+
+                var latency = Math.Round(sw.Elapsed.TotalMilliseconds, 1);
+                var statusCode = (int)res.StatusCode;
+
+                // If the remote server responded with ANY status code < 500 (even 200, 301, 302, 401, 403, 404),
+                // it proves the service process is up, listening on the port, and actively processing requests!
+                if (statusCode < 500)
+                {
+                    return ("HEALTHY", latency);
+                }
+            }
+            catch
+            {
+                // Try next probe candidate path
+            }
+        }
+
+        return ("UNHEALTHY", 0);
+    }
+
     /// <summary>
     /// Proxy OpenAPI JSON từ downstream microservice để tránh lỗi CORS và chuẩn hóa Server URL
     /// </summary>
@@ -122,36 +163,34 @@ public class SwaggerAggregatorController : ControllerBase
         }
 
         var baseUrl = (serviceSection["BaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
-        var swaggerJsonUrl = $"{baseUrl}/swagger/v1/swagger.json";
-
         var client = _httpClientFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(5);
 
-        try
+        var candidateUrls = new[]
         {
-            var response = await client.GetAsync(swaggerJsonUrl);
-            if (!response.IsSuccessStatusCode)
-            {
-                var fallbackResponse = await client.GetAsync($"{baseUrl}/swagger.json");
-                if (!fallbackResponse.IsSuccessStatusCode)
-                {
-                    return StatusCode((int)response.StatusCode, new
-                    {
-                        message = $"Không thể tải OpenAPI Swagger từ dịch vụ '{serviceKey}' tại {swaggerJsonUrl}. Mã lỗi: {(int)response.StatusCode}"
-                    });
-                }
-                response = fallbackResponse;
-            }
+            $"{baseUrl}/swagger/v1/swagger.json",
+            $"{baseUrl}/swagger.json",
+            $"{baseUrl}/v1/swagger.json",
+            $"{baseUrl}/api/v1/swagger.json"
+        };
 
-            var content = await response.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
-        }
-        catch (Exception ex)
+        foreach (var url in candidateUrls)
         {
-            return StatusCode(502, new
+            try
             {
-                message = $"Lỗi kết nối tới Swagger của dịch vụ '{serviceKey}' ({swaggerJsonUrl}): {ex.Message}"
-            });
+                var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    return Content(content, "application/json");
+                }
+            }
+            catch { }
         }
+
+        return StatusCode(502, new
+        {
+            message = $"Không thể tải OpenAPI Swagger từ dịch vụ '{serviceKey}' tại {baseUrl}."
+        });
     }
 }
