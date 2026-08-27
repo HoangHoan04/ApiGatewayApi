@@ -5,7 +5,6 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Add Services to the container
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -50,13 +49,11 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ITraceLogStore, InMemoryTraceLogStore>();
 
-// 2. Add YARP Reverse Proxy
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// 3. Configure CORS
 var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>()
-    ?? new[] { "http://localhost:4200", "http://localhost:4300", "http://localhost:4400", "http://localhost:4500", "http://localhost:8000" };
+    ?? new[] { "http://localhost:4200", "http://localhost:4300", "http://localhost:4400", "http://localhost:4500", "http://localhost:4600", "http://localhost:8000" };
 
 builder.Services.AddCors(options =>
 {
@@ -71,14 +68,12 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 4. Middlewares Pipeline
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<RequestTraceLoggerMiddleware>();
 app.UseMiddleware<GatewayExceptionMiddleware>();
 
 app.UseCors("GatewayCorsPolicy");
 
-// 5. Dynamic Swagger Aggregator & UI
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -96,7 +91,6 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// 6. Health check endpoint
 app.MapGet("/health", () => Results.Ok(new
 {
     Status = "Healthy",
@@ -105,10 +99,7 @@ app.MapGet("/health", () => Results.Ok(new
     Timestamp = DateTime.UtcNow
 }));
 
-// 7. Map Management Controllers
 app.MapControllers();
-
-// 8. Map YARP Reverse Proxy
 app.MapReverseProxy();
 
 app.Run();

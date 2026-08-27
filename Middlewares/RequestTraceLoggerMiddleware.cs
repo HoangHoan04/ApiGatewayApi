@@ -17,7 +17,6 @@ public class RequestTraceLoggerMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Don't trace internal gateway management APIs to avoid log pollution
         var path = context.Request.Path.Value ?? string.Empty;
         if (path.StartsWith("/api/gateway/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||

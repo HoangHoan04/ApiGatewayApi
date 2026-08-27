@@ -10,7 +10,7 @@ public class ServiceHealthItem
     public string BaseUrl { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Icon { get; set; } = string.Empty;
-    public string Status { get; set; } = "UNKNOWN"; // HEALTHY, UNHEALTHY, STANDBY
+    public string Status { get; set; } = "UNKNOWN";
     public long LatencyMs { get; set; }
     public DateTime LastCheckedAt { get; set; } = DateTime.UtcNow;
     public string? ErrorMessage { get; set; }
@@ -66,12 +66,12 @@ public class ServiceHealthController : ControllerBase
     }
 
     private static async Task<ServiceHealthItem> CheckSingleServiceAsync(
-        HttpClient client, 
-        string key, 
-        string name, 
-        string baseUrl, 
-        string healthUrl, 
-        string desc, 
+        HttpClient client,
+        string key,
+        string name,
+        string baseUrl,
+        string healthUrl,
+        string desc,
         string icon)
     {
         var item = new ServiceHealthItem
@@ -91,7 +91,6 @@ public class ServiceHealthController : ControllerBase
             sw.Stop();
             item.LatencyMs = sw.ElapsedMilliseconds;
 
-            // Any response code below 500 means the server process is alive and responding
             if ((int)response.StatusCode < 500)
             {
                 item.Status = "HEALTHY";

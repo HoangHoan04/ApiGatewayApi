@@ -12,7 +12,7 @@ public class SwaggerDocServiceItem
     public string ProxyDocUrl { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Icon { get; set; } = string.Empty;
-    public string Status { get; set; } = "UNKNOWN"; // HEALTHY, UNHEALTHY, UNKNOWN
+    public string Status { get; set; } = "UNKNOWN";
     public double LatencyMs { get; set; }
 }
 
@@ -133,9 +133,6 @@ public class SwaggerAggregatorController : ControllerBase
 
                 var latency = Math.Round(sw.Elapsed.TotalMilliseconds, 1);
                 var statusCode = (int)res.StatusCode;
-
-                // If the remote server responded with ANY status code < 500 (even 200, 301, 302, 401, 403, 404),
-                // it proves the service process is up, listening on the port, and actively processing requests!
                 if (statusCode < 500)
                 {
                     return ("HEALTHY", latency);
@@ -143,7 +140,7 @@ public class SwaggerAggregatorController : ControllerBase
             }
             catch
             {
-                // Try next probe candidate path
+                //! Try next probe candidate path
             }
         }
 
