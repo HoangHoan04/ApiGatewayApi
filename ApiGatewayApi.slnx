@@ -1,3 +1,6 @@
 <Solution>
-  <Project Path="ApiGatewayApi.csproj" />
+  <Project Path="ApiGatewayApi.Application/ApiGatewayApi.Application.csproj" />
+  <Project Path="ApiGatewayApi.Domain/ApiGatewayApi.Domain.csproj" />
+  <Project Path="ApiGatewayApi.Infrastructure/ApiGatewayApi.Infrastructure.csproj" />
+  <Project Path="ApiGatewayApi.WebApi/ApiGatewayApi.WebApi.csproj" />
 </Solution>
